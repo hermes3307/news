@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>실시간 뉴스 검색 서비스</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f5f6f7;
+        }
+        .app-container {
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .sidebar {
+            width: 300px;
+            background: white;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            overflow-y: auto;
+            flex-shrink: 0;
+        }
+        .main-content {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background-color: #f5f6f7;
+        }
+        h1 {
+            font-size: 1.5rem;
+            color: #333;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #03c75a;
+        }
+        .category-section {
+            margin-bottom: 20px;
+        }
+        .category-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-weight: bold;
+            color: #333;
+            margin: 10px 0;
+            padding: 5px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .keyword-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .keyword-btn {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 15px;
+            background-color: white;
+            color: #666;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+        .keyword-btn:hover {
+            background-color: #f8f9fa;
+            border-color: #03c75a;
+            color: #03c75a;
+        }
+        .keyword-btn.active {
+            background-color: #03c75a;
+            color: white;
+            border-color: #03c75a;
+        }
+        .news-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+            padding: 20px 0;
+        }
+        .news-card {
+            position: relative;
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border-left: 4px solid transparent;
+        }
+        .news-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        }
+        .news-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        .news-description {
+            font-size: 0.9rem;
+            color: #666;
+            margin-bottom: 10px;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .news-date {
+            font-size: 0.8rem;
+            color: #999;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+        .modal-content {
+            position: relative;
+            background-color: white;
+            margin: 10% auto;
+            padding: 20px;
+            width: 80%;
+            max-width: 700px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+        .close-btn {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            font-size: 24px;
+            cursor: pointer;
+            color: #666;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+        .search-status {
+            margin: 20px 0;
+            padding: 10px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+            color: #666;
+        }
+        .news-notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background-color: #03c75a;
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+            display: none;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        .category-filter {
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .filter-btn {
+            padding: 8px 16px;
+            border: 2px solid #03c75a;
+            border-radius: 20px;
+            background-color: white;
+            color: #03c75a;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+        .filter-btn.active {
+            background-color: #03c75a;
+            color: white;
+        }
+        .news-card .category-tag {
+            display: inline-block;
+            padding: 4px 8px;
+            background-color: #e9ecef;
+            border-radius: 4px;
+            font-size: 12px;
+            margin-bottom: 8px;
+            color: #666;
+        }
+        .keyword-tag {
+            display: inline-block;
+            padding: 2px 6px;
+            background-color: #e3f2fd;
+            border-radius: 4px;
+            font-size: 11px;
+            margin: 4px 0;
+            color: #1976d2;
+        }
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .news-card.new {
+            animation: slideDown 0.5s ease-out;
+            border-left: 4px solid #03c75a;
+        }
+        
+        .news-card .new-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #03c75a;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            opacity: 1;
+            transition: opacity 0.3s ease-out;
+        }
+        
+        .news-card .new-badge.fade-out {
+            opacity: 0;
+        }
+
+        /* Add new CSS for highlight animation */
+        @keyframes highlightPulse {
+            0% { background-color: rgba(76, 175, 80, 0.3); }
+            50% { background-color: rgba(76, 175, 80, 0.1); }
+            100% { background-color: rgba(76, 175, 80, 0.3); }
+        }
+
+        .news-card.new-item {
+            animation: slideDown 0.5s ease-out, highlightPulse 2s ease-in-out 3;
+            border-left: 5px solid #4CAF50;
+        }
+
+        .highlight-animation {
+            position: relative;
+        }
+
+        .highlight-animation::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(76, 175, 80, 0.2);
+            animation: fadeOut 3s ease-out forwards;
+            pointer-events: none;
+        }
+
+        @keyframes fadeOut {
+            0% { opacity: 1; }
+            100% { opacity: 0; }
+        }
+
+        /* Add styles for news counts */
+        .count {
+            font-size: 0.8em;
+            color: #666;
+            margin-left: 5px;
+        }
+        
+        .filter-btn .count {
+            color: inherit;
+            opacity: 0.8;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #03c75a;
+        }
+        .settings-btn {
+            padding: 8px 16px;
+            background-color: #03c75a;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-left: auto;
+        }
+        .settings-btn:hover {
+            background-color: #02b050;
+        }
+        .settings-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 2000;
+        }
+        .settings-content {
+            position: relative;
+            background-color: white;
+            margin: 5% auto;
+            padding: 20px;
+            width: 90%;
+            max-width: 800px;
+            border-radius: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .settings-section {
+            background: #f8f9fa;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+        .settings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .settings-header h2 {
+            margin: 0;
+            font-size: 1.5rem;
+            color: #333;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        }
+        .stat-title {
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .stat-value {
+            color: #03c75a;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        .stat-list {
+            margin-top: 15px;
+        }
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+        .database-management {
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        
+        .warning-text {
+            color: #dc3545;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        
+        .danger-btn {
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background-color 0.2s;
+        }
+        
+        .danger-btn:hover {
+            background-color: #c82333;
+        }
+
+        .collector-status {
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+        
+        .stat-details {
+            margin-top: 15px;
+            font-size: 0.9rem;
+            color: #666;
+        }
+        
+        .stat-details p {
+            margin: 5px 0;
+        }
+        
+        .action-btn {
+            background-color: #03c75a;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background-color 0.2s;
+            margin-top: 15px;
+        }
+        
+        .action-btn:hover {
+            background-color: #02b050;
+        }
+        
+        #collector-status.running {
+            color: #03c75a;
+        }
+        
+        #collector-status.error {
+            color: #dc3545;
+        }
+        
+        #collector-status.waiting {
+            color: #ffc107;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Sidebar -->
+        <div class="sidebar">
+            <div class="header">
+                <h1>실시간 뉴스 검색</h1>
+                <button class="settings-btn" onclick="openSettings()">설정</button>
+            </div>
+            <div class="category-filter" id="categoryFilter">
+                <button class="filter-btn active" data-category="전체">
+                    전체 <span class="count">({{ news_counts['전체'] }})</span>
+                </button>
+                {% for category, keywords in categories.items() %}
+                    {% if category != "전체" %}
+                    <button class="filter-btn" data-category="{{ category }}">
+                        {{ category.replace('_', ' ') }} <span class="count">({{ news_counts[category] }})</span>
+                    </button>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            {% for category, keywords in categories.items() %}
+                {% if category != "전체" and keywords %}
+                <div class="category-section">
+                    <div class="category-title">
+                        {{ category.replace('_', ' ') }}
+                        <span class="count">({{ news_counts[category] }})</span>
+                    </div>
+                    <div class="keyword-buttons">
+                        {% for keyword in keywords %}
+                        <button class="keyword-btn" onclick="searchNews('{{ keyword }}', '')">{{ keyword }}</button>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <!-- Right Content Area -->
+        <div class="main-content">
+            <div class="search-status" id="searchStatus"></div>
+            <div class="loading">검색 중...</div>
+            <div class="news-container" id="newsResults"></div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="newsModal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h2 id="modalTitle"></h2>
+            <p id="modalDescription"></p>
+            <p id="modalDate"></p>
+            <a id="modalLink" href="" target="_blank">원문 보기</a>
+        </div>
+    </div>
+
+    <!-- Notification -->
+    <div class="news-notification" id="newsNotification"></div>
+
+    <!-- Settings Modal -->
+    <div id="settingsModal" class="settings-modal">
+        <div class="settings-content">
+            <div class="settings-header">
+                <h2>설정</h2>
+                <span class="close-btn" onclick="closeSettings()">&times;</span>
+            </div>
+            <div class="settings-section">
+                <div class="section-header" onclick="toggleDatabaseStats()">
+                    <h3>데이터베이스 통계</h3>
+                    <button class="toggle-btn">▼</button>
+                </div>
+                <div id="database-stats" style="display: none;">
+                    <div id="loading" class="loading">데이터 로딩 중...</div>
+                    <div id="error" class="error" style="display: none;"></div>
+                    <div id="stats-container" style="display: none;">
+                        <div class="stat-card">
+                            <div class="stat-title">전체 뉴스 수</div>
+                            <div class="stat-value" id="total-news">0</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">카테고리 수</div>
+                            <div class="stat-value" id="total-categories">0</div>
+                            <div class="stat-list" id="category-stats"></div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-title">키워드별 뉴스 수</div>
+                            <div class="stat-list" id="keyword-stats"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Add Database Management Section -->
+            <div class="settings-section">
+                <div class="section-header">
+                    <h3>뉴스 수집기 상태</h3>
+                </div>
+                <div class="collector-status">
+                    <div class="stat-card">
+                        <div class="stat-title">수집기 상태</div>
+                        <div class="stat-value" id="collector-status">확인 중...</div>
+                        <div class="stat-details">
+                            <div id="collector-details">
+                                <p>마지막 실행: <span id="last-run">-</span></p>
+                                <p>현재 카테고리: <span id="current-category">-</span></p>
+                                <p>현재 키워드: <span id="current-keyword">-</span></p>
+                            </div>
+                        </div>
+                        <button id="restartCollectorBtn" class="action-btn" onclick="restartCollector()">
+                            수집기 재시작
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <div class="section-header">
+                    <h3>데이터베이스 관리</h3>
+                </div>
+                <div class="database-management">
+                    <div class="warning-text">
+                        주의: 데이터베이스를 초기화하면 모든 뉴스 데이터가 삭제됩니다.
+                        이 작업은 되돌릴 수 없습니다.
+                    </div>
+                    <button id="resetDbBtn" class="danger-btn" onclick="confirmResetDatabase()">
+                        데이터베이스 초기화
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentKeyword = '';
+        let currentFilter = 'all';
+        let newsCache = new Map();
+        
+        // Initialize EventSource for real-time updates
+        const eventSource = new EventSource('/stream');
+        
+        eventSource.onmessage = function(event) {
+            const news = JSON.parse(event.data);
+            if (!newsCache.has(news.id)) {
+                newsCache.set(news.id, news);
+                // Show news if it matches current filter or keyword
+                if ((currentFilter === 'all' || currentFilter === news.category) ||
+                    (currentKeyword && currentKeyword === news.keyword)) {
+                    addNewsToDisplay(news, true);
+                }
+                showNotification(`새로운 뉴스: ${news.title}`);
+                updateNewsCounts();
+            }
+        };
+
+        function showNotification(message) {
+            const notification = document.getElementById('newsNotification');
+            notification.textContent = message;
+            notification.style.display = 'block';
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 5000);
+        }
+
+        function addNewsToDisplay(news, isNew = false) {
+            const newsContainer = document.getElementById('newsResults');
+            const newsCard = document.createElement('div');
+            newsCard.className = `news-card ${isNew ? 'new-item' : ''}`;
+            
+            // Add highlight animation class
+            if (isNew) {
+                newsCard.classList.add('highlight-animation');
+                // Remove highlight animation class after animation completes
+                setTimeout(() => {
+                    newsCard.classList.remove('highlight-animation');
+                }, 3000);
+            }
+
+            // Create news card content
+            newsCard.innerHTML = `
+                <div class="news-header">
+                    <h3>${news.title}</h3>
+                    ${isNew ? '<span class="new-badge">NEW</span>' : ''}
+                </div>
+                <p class="news-description">${news.description}</p>
+                <div class="news-footer">
+                    <span class="news-date">${new Date(news.pubDate).toLocaleString()}</span>
+                    <span class="news-category">${news.category || ''}</span>
+                </div>
+            `;
+
+            // Add click event for modal
+            newsCard.addEventListener('click', () => {
+                showModal(news);
+            });
+
+            // Insert at the beginning of the container
+            newsContainer.insertBefore(newsCard, newsContainer.firstChild);
+
+            // Remove new badge after 5 minutes
+            if (isNew) {
+                setTimeout(() => {
+                    const badge = newsCard.querySelector('.new-badge');
+                    if (badge) {
+                        badge.remove();
+                    }
+                    newsCard.classList.remove('new-item');
+                }, 300000); // 5 minutes
+            }
+        }
+
+        async function searchNews(keyword, category) {
+            const loadingDiv = document.querySelector('.loading');
+            const newsContainer = document.getElementById('newsResults');
+            const searchStatus = document.getElementById('searchStatus');
+            const buttons = document.querySelectorAll('.keyword-btn, .filter-btn');
+            
+            // Update active button states
+            buttons.forEach(btn => {
+                if (btn.classList.contains('filter-btn')) {
+                    // For category buttons
+                    if (btn.dataset.category === category && !keyword) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                } else {
+                    // For keyword buttons
+                    if (btn.textContent === keyword) {
+                        btn.classList.add('active');
+                    } else {
+                        btn.classList.remove('active');
+                    }
+                }
+            });
+            
+            currentKeyword = keyword;
+            currentFilter = category;
+            
+            loadingDiv.style.display = 'block';
+            newsContainer.innerHTML = '';
+            
+            // Update search status message
+            if (keyword) {
+                searchStatus.textContent = `"${keyword}" 키워드로 검색 중...`;
+            } else if (category) {
+                searchStatus.textContent = `"${category.replace('_', ' ')}" 카테고리 뉴스 검색 중...`;
+            }
+
+            try {
+                const response = await fetch('/search_news', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ keyword, category })
+                });
+
+                const data = await response.json();
+                
+                if (data.error) {
+                    searchStatus.textContent = `오류: ${data.error}`;
+                    return;
+                }
+
+                const newsItems = data.news || [];
+
+                if (newsItems.length === 0) {
+                    if (keyword) {
+                        searchStatus.textContent = `"${keyword}" 키워드에 대한 검색 결과가 없습니다.`;
+                    } else if (category) {
+                        searchStatus.textContent = `"${category.replace('_', ' ')}" 카테고리에 대한 검색 결과가 없습니다.`;
+                    }
+                    return;
+                }
+
+                // Sort items by date
+                newsItems.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
+
+                // Update status with result count
+                if (keyword) {
+                    searchStatus.textContent = `"${keyword}" 키워드 검색 결과 ${newsItems.length}건`;
+                } else if (category) {
+                    searchStatus.textContent = `"${category.replace('_', ' ')}" 카테고리 검색 결과 ${newsItems.length}건`;
+                }
+
+                newsItems.forEach(news => {
+                    addNewsToDisplay(news);
+                });
+            } catch (error) {
+                console.error('Error:', error);
+                newsContainer.innerHTML = '<p style="color: red;">뉴스를 불러오는 중 오류가 발생했습니다.</p>';
+                searchStatus.textContent = '오류가 발생했습니다.';
+            } finally {
+                loadingDiv.style.display = 'none';
+            }
+        }
+
+        // Category filter functionality
+        document.getElementById('categoryFilter').addEventListener('click', (e) => {
+            if (e.target.classList.contains('filter-btn')) {
+                const buttons = document.querySelectorAll('.filter-btn');
+                buttons.forEach(btn => btn.classList.remove('active'));
+                e.target.classList.add('active');
+                
+                currentFilter = e.target.dataset.category;
+                // Clear any active keyword when switching categories
+                document.querySelectorAll('.keyword-btn').forEach(btn => btn.classList.remove('active'));
+                searchNews('', currentFilter);
+            }
+        });
+
+        function showModal(news) {
+            const modal = document.getElementById('newsModal');
+            const title = document.getElementById('modalTitle');
+            const description = document.getElementById('modalDescription');
+            const date = document.getElementById('modalDate');
+            const link = document.getElementById('modalLink');
+            
+            title.textContent = news.title.replace(/(<([^>]+)>)/gi, "");
+            description.textContent = news.description.replace(/(<([^>]+)>)/gi, "");
+            date.textContent = new Date(news.pubDate).toLocaleString();
+            link.href = news.link;
+            
+            modal.style.display = 'block';
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('newsModal');
+            modal.style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('newsModal');
+            if (event.target == modal) {
+                modal.style.display = 'none';
+            }
+        }
+
+        // Initial search
+        document.addEventListener('DOMContentLoaded', function() {
+            searchNews('MCP Database Server', '데이터베이스_AI기술');
+        });
+
+        // Add function to update news counts
+        async function updateNewsCounts() {
+            try {
+                const response = await fetch('/get_news_counts');
+                const counts = await response.json();
+                
+                // Update counts in category filter
+                document.querySelectorAll('.filter-btn').forEach(btn => {
+                    const category = btn.dataset.category;
+                    const countSpan = btn.querySelector('.count');
+                    if (countSpan && counts[category] !== undefined) {
+                        countSpan.textContent = `(${counts[category]})`;
+                    }
+                });
+                
+                // Update counts in category sections
+                document.querySelectorAll('.category-title').forEach(title => {
+                    const category = title.textContent.trim().split('(')[0].trim();
+                    const countSpan = title.querySelector('.count');
+                    if (countSpan && counts[category] !== undefined) {
+                        countSpan.textContent = `(${counts[category]})`;
+                    }
+                });
+            } catch (error) {
+                console.error('Error updating news counts:', error);
+            }
+        }
+
+        // Update counts periodically
+        setInterval(updateNewsCounts, 10000); // Update every 30 seconds
+
+        // Add these new functions at the end of the script
+        function openSettings() {
+            document.getElementById('settingsModal').style.display = 'block';
+            updateCollectorStatus();
+            // Start periodic updates
+            collectorStatusInterval = setInterval(updateCollectorStatus, 5000);
+        }
+
+        function closeSettings() {
+            document.getElementById('settingsModal').style.display = 'none';
+            // Stop periodic updates
+            if (collectorStatusInterval) {
+                clearInterval(collectorStatusInterval);
+            }
+        }
+
+        function toggleDatabaseStats() {
+            const statsDiv = document.getElementById('database-stats');
+            const toggleBtn = event.currentTarget.querySelector('.toggle-btn');
+            
+            if (statsDiv.style.display === 'none') {
+                statsDiv.style.display = 'block';
+                toggleBtn.textContent = '▲';
+                loadDatabaseStats();
+            } else {
+                statsDiv.style.display = 'none';
+                toggleBtn.textContent = '▼';
+            }
+        }
+
+        async function loadDatabaseStats() {
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const statsContainer = document.getElementById('stats-container');
+            
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            statsContainer.style.display = 'none';
+            
+            try {
+                const response = await fetch('/get_database_stats');
+                const data = await response.json();
+                
+                if (data.error) {
+                    throw new Error(data.error);
+                }
+                
+                // Update total news
+                document.getElementById('total-news').textContent = data.total_news;
+                
+                // Update total categories
+                document.getElementById('total-categories').textContent = data.total_categories;
+                
+                // Update category stats
+                const categoryStats = document.getElementById('category-stats');
+                categoryStats.innerHTML = '';
+                Object.entries(data.category_counts).forEach(([category, count]) => {
+                    categoryStats.innerHTML += `
+                        <div class="stat-item">
+                            <span>${category.replace('_', ' ')}</span>
+                            <span>${count}건</span>
+                        </div>
+                    `;
+                });
+                
+                // Update keyword stats
+                const keywordStats = document.getElementById('keyword-stats');
+                keywordStats.innerHTML = '';
+                Object.entries(data.keyword_counts)
+                    .sort((a, b) => b[1] - a[1]) // Sort by count in descending order
+                    .forEach(([keyword, count]) => {
+                        keywordStats.innerHTML += `
+                            <div class="stat-item">
+                                <span>${keyword}</span>
+                                <span>${count}건</span>
+                            </div>
+                        `;
+                    });
+                
+                loading.style.display = 'none';
+                statsContainer.style.display = 'block';
+            } catch (err) {
+                loading.style.display = 'none';
+                error.style.display = 'block';
+                error.textContent = `오류가 발생했습니다: ${err.message}`;
+            }
+        }
+
+        // Close settings modal when clicking outside
+        window.onclick = function(event) {
+            const settingsModal = document.getElementById('settingsModal');
+            const newsModal = document.getElementById('newsModal');
+            if (event.target == settingsModal) {
+                settingsModal.style.display = 'none';
+            } else if (event.target == newsModal) {
+                newsModal.style.display = 'none';
+            }
+        }
+
+        // Add these new functions at the end of your script
+        function confirmResetDatabase() {
+            if (confirm('정말로 데이터베이스를 초기화하시겠습니까?\n모든 뉴스 데이터가 삭제됩니다.')) {
+                resetDatabase();
+            }
+        }
+        
+        async function resetDatabase() {
+            try {
+                const response = await fetch('/reset_database', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(data.message);
+                    // Clear the news container
+                    document.getElementById('newsResults').innerHTML = '';
+                    // Update the news counts
+                    updateNewsCounts();
+                    // Reload database stats if they're visible
+                    if (document.getElementById('database-stats').style.display !== 'none') {
+                        loadDatabaseStats();
+                    }
+                    // Reset the search status
+                    document.getElementById('searchStatus').textContent = '데이터베이스가 초기화되었습니다.';
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                alert('데이터베이스 초기화 중 오류가 발생했습니다: ' + error.message);
+            }
+        }
+
+        // Add these new functions for collector status
+        async function updateCollectorStatus() {
+            try {
+                const response = await fetch('/collector/status');
+                const data = await response.json();
+                
+                const statusElement = document.getElementById('collector-status');
+                const lastRunElement = document.getElementById('last-run');
+                const currentCategoryElement = document.getElementById('current-category');
+                const currentKeywordElement = document.getElementById('current-keyword');
+                
+                // Update status with color coding
+                statusElement.textContent = data.status;
+                statusElement.className = data.status.toLowerCase();
+                
+                // Update details
+                if (data.last_run) {
+                    lastRunElement.textContent = new Date(data.last_run).toLocaleString();
+                }
+                currentCategoryElement.textContent = data.current_category || '-';
+                currentKeywordElement.textContent = data.current_keyword || '-';
+                
+            } catch (error) {
+                console.error('Error fetching collector status:', error);
+            }
+        }
+        
+        async function restartCollector() {
+            if (confirm('뉴스 수집기를 재시작하시겠습니까?')) {
+                try {
+                    const response = await fetch('/collector/restart', {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        alert('뉴스 수집기가 재시작되었습니다.');
+                        updateCollectorStatus();
+                    } else {
+                        throw new Error(data.error);
+                    }
+                } catch (error) {
+                    alert('수집기 재시작 중 오류가 발생했습니다: ' + error.message);
+                }
+            }
+        }
+    </script>
+</body>
+</html> 
