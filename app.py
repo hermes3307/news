@@ -57,7 +57,7 @@ NAVER_CLIENT_SECRET = os.getenv('NAVER_CLIENT_SECRET')
 SEARCH_CATEGORIES = {
     "전체": [],  # This will be populated with all keywords
     "데이터베이스_AI기술": ["MCP", "AI 데이터베이스", "인공지능 데이터베이스", "자율운영 데이터베이스"],
-    "데이터베이스_일반": ["Oracle Database", "MySQL", "PostgreSQL", "MongoDB", "Redis"],
+    "데이터베이스_일반": ["Altibase", "Oracle Database", "MySQL", "PostgreSQL", "MongoDB", "Redis"],
     "국내_경쟁_기업": ["네이버 클라우드", "카카오 클라우드", "KT 클라우드"],
     "해외_경쟁_기업": ["AWS", "Google Cloud", "Microsoft Azure", "IBM Cloud"],
     "오픈소스_직접_경쟁": ["PostgreSQL", "MySQL", "MariaDB", "MongoDB"],
