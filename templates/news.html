@@ -86,15 +86,16 @@
             position: relative;
             background: white;
             border-radius: 10px;
-            padding: 15px;
+            padding: 20px;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.3s ease;
             border-left: 4px solid transparent;
+            margin-bottom: 15px;
         }
         .news-card:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            transform: translateY(-3px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
         }
         .news-title {
             font-weight: bold;
@@ -110,9 +111,21 @@
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
-        .news-date {
+        .news-meta {
+            display: flex;
+            gap: 15px;
+            margin-top: 10px;
             font-size: 0.8rem;
-            color: #999;
+            color: #666;
+        }
+        .news-date {
+            color: #03c75a;
+        }
+        .news-category, .news-keyword {
+            background-color: #f0f0f0;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
         }
         .modal {
             display: none;
@@ -157,24 +170,23 @@
         }
         .news-notification {
             position: fixed;
-            bottom: 20px;
+            top: 20px;
             right: 20px;
             background-color: #03c75a;
             color: white;
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
-            display: none;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
             z-index: 1000;
             animation: slideIn 0.3s ease-out;
         }
         @keyframes slideIn {
             from {
-                transform: translateX(100%);
+                transform: translateY(-20px);
                 opacity: 0;
             }
             to {
-                transform: translateX(0);
+                transform: translateY(0);
                 opacity: 1;
             }
         }
@@ -456,6 +468,15 @@
         #collector-status.waiting {
             color: #ffc107;
         }
+
+        .category-title:hover {
+            background-color: #f0f0f0;
+        }
+
+        .category-title.active {
+            background-color: #03c75a;
+            color: white;
+        }
     </style>
 </head>
 <body>
@@ -591,183 +612,190 @@
     </div>
 
     <script>
+        let currentCategory = '전체';
         let currentKeyword = '';
-        let currentFilter = 'all';
-        let newsCache = new Map();
-        
-        // Initialize EventSource for real-time updates
-        const eventSource = new EventSource('/stream');
-        
-        eventSource.onmessage = function(event) {
-            const news = JSON.parse(event.data);
-            if (!newsCache.has(news.id)) {
-                newsCache.set(news.id, news);
-                // Show news if it matches current filter or keyword
-                if ((currentFilter === 'all' || currentFilter === news.category) ||
-                    (currentKeyword && currentKeyword === news.keyword)) {
-                    addNewsToDisplay(news, true);
-                }
-                showNotification(`새로운 뉴스: ${news.title}`);
-                updateNewsCounts();
-            }
-        };
+        let newsContainer;
+        let eventSource;
 
-        function showNotification(message) {
-            const notification = document.getElementById('newsNotification');
-            notification.textContent = message;
-            notification.style.display = 'block';
+        document.addEventListener('DOMContentLoaded', function() {
+            newsContainer = document.querySelector('.news-container');
+            setupEventSource();
+            loadNews('전체');
+            setupCategoryButtons();
+            setupKeywordButtons();
+            setupFilterButtons();
+        });
+
+        function setupEventSource() {
+            if (eventSource) {
+                eventSource.close();
+            }
+            
+            eventSource = new EventSource('/stream');
+            eventSource.onmessage = function(event) {
+                const newsItem = JSON.parse(event.data);
+                if (shouldShowNews(newsItem)) {
+                    prependNewsCard(newsItem);
+                    showNotification('새로운 뉴스가 추가되었습니다!');
+                }
+            };
+        }
+
+        function shouldShowNews(newsItem) {
+            if (currentCategory === '전체') return true;
+            if (currentKeyword) {
+                return newsItem.keyword === currentKeyword;
+            }
+            return newsItem.category === currentCategory;
+        }
+
+        function prependNewsCard(news) {
+            const card = createNewsCard(news);
+            card.classList.add('new-item');
+            newsContainer.insertBefore(card, newsContainer.firstChild);
+            
+            // Remove highlight after animation
             setTimeout(() => {
-                notification.style.display = 'none';
+                card.classList.remove('new-item');
             }, 5000);
         }
 
-        function addNewsToDisplay(news, isNew = false) {
-            const newsContainer = document.getElementById('newsResults');
-            const newsCard = document.createElement('div');
-            newsCard.className = `news-card ${isNew ? 'new-item' : ''}`;
+        function loadNews(category, keyword = '') {
+            currentCategory = category;
+            currentKeyword = keyword;
             
-            // Add highlight animation class
-            if (isNew) {
-                newsCard.classList.add('highlight-animation');
-                // Remove highlight animation class after animation completes
-                setTimeout(() => {
-                    newsCard.classList.remove('highlight-animation');
-                }, 3000);
-            }
+            const loading = document.querySelector('.loading');
+            const searchStatus = document.getElementById('searchStatus');
+            loading.style.display = 'block';
+            
+            fetch('/search_news', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ category, keyword })
+            })
+            .then(response => response.json())
+            .then(data => {
+                newsContainer.innerHTML = '';
+                
+                // Sort news by date (most recent first)
+                const sortedNews = data.news.sort((a, b) => {
+                    return new Date(b.pubDate) - new Date(a.pubDate);
+                });
 
-            // Create news card content
-            newsCard.innerHTML = `
-                <div class="news-header">
-                    <h3>${news.title}</h3>
-                    ${isNew ? '<span class="new-badge">NEW</span>' : ''}
-                </div>
-                <p class="news-description">${news.description}</p>
-                <div class="news-footer">
-                    <span class="news-date">${new Date(news.pubDate).toLocaleString()}</span>
-                    <span class="news-category">${news.category || ''}</span>
+                // Update search status
+                if (keyword) {
+                    searchStatus.textContent = `"${keyword}" 검색 결과 (${sortedNews.length}건)`;
+                } else {
+                    searchStatus.textContent = `${category.replace('_', ' ')} 카테고리 뉴스 (${sortedNews.length}건)`;
+                }
+
+                sortedNews.forEach(news => {
+                    const card = createNewsCard(news);
+                    newsContainer.appendChild(card);
+                });
+            })
+            .catch(error => {
+                console.error('Error loading news:', error);
+                searchStatus.textContent = '뉴스를 불러오는 중 오류가 발생했습니다.';
+            })
+            .finally(() => {
+                loading.style.display = 'none';
+            });
+        }
+
+        function createNewsCard(news) {
+            const card = document.createElement('div');
+            card.className = 'news-card';
+            
+            // Format the date
+            const pubDate = formatDate(news.pubDate);
+            
+            card.innerHTML = `
+                <div class="news-title">${news.title}</div>
+                <div class="news-description">${news.description}</div>
+                <div class="news-meta">
+                    <span class="news-date">${pubDate}</span>
+                    <span class="news-category">${news.category}</span>
+                    ${news.keyword ? `<span class="news-keyword">${news.keyword}</span>` : ''}
                 </div>
             `;
+            
+            card.onclick = () => window.open(news.link, '_blank');
+            return card;
+        }
 
-            // Add click event for modal
-            newsCard.addEventListener('click', () => {
-                showModal(news);
-            });
+        function formatDate(dateStr) {
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = now - date;
+            const minutes = Math.floor(diff / 60000);
+            const hours = Math.floor(minutes / 60);
+            const days = Math.floor(hours / 24);
 
-            // Insert at the beginning of the container
-            newsContainer.insertBefore(newsCard, newsContainer.firstChild);
-
-            // Remove new badge after 5 minutes
-            if (isNew) {
-                setTimeout(() => {
-                    const badge = newsCard.querySelector('.new-badge');
-                    if (badge) {
-                        badge.remove();
-                    }
-                    newsCard.classList.remove('new-item');
-                }, 300000); // 5 minutes
+            // Show relative time for recent news
+            if (minutes < 60) {
+                return `${minutes}분 전`;
+            } else if (hours < 24) {
+                return `${hours}시간 전`;
+            } else if (days < 7) {
+                return `${days}일 전`;
+            } else {
+                // Show full date for older news
+                return date.toLocaleString('ko-KR', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
             }
         }
 
-        async function searchNews(keyword, category) {
-            const loadingDiv = document.querySelector('.loading');
-            const newsContainer = document.getElementById('newsResults');
-            const searchStatus = document.getElementById('searchStatus');
-            const buttons = document.querySelectorAll('.keyword-btn, .filter-btn');
+        function showNotification(message) {
+            const notification = document.querySelector('.news-notification');
+            notification.textContent = message;
+            notification.style.display = 'block';
             
-            // Update active button states
-            buttons.forEach(btn => {
-                if (btn.classList.contains('filter-btn')) {
-                    // For category buttons
-                    if (btn.dataset.category === category && !keyword) {
-                        btn.classList.add('active');
-                    } else {
-                        btn.classList.remove('active');
-                    }
-                } else {
-                    // For keyword buttons
-                    if (btn.textContent === keyword) {
-                        btn.classList.add('active');
-                    } else {
-                        btn.classList.remove('active');
-                    }
-                }
-            });
-            
-            currentKeyword = keyword;
-            currentFilter = category;
-            
-            loadingDiv.style.display = 'block';
-            newsContainer.innerHTML = '';
-            
-            // Update search status message
-            if (keyword) {
-                searchStatus.textContent = `"${keyword}" 키워드로 검색 중...`;
-            } else if (category) {
-                searchStatus.textContent = `"${category.replace('_', ' ')}" 카테고리 뉴스 검색 중...`;
-            }
-
-            try {
-                const response = await fetch('/search_news', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ keyword, category })
-                });
-
-                const data = await response.json();
-                
-                if (data.error) {
-                    searchStatus.textContent = `오류: ${data.error}`;
-                    return;
-                }
-
-                const newsItems = data.news || [];
-
-                if (newsItems.length === 0) {
-                    if (keyword) {
-                        searchStatus.textContent = `"${keyword}" 키워드에 대한 검색 결과가 없습니다.`;
-                    } else if (category) {
-                        searchStatus.textContent = `"${category.replace('_', ' ')}" 카테고리에 대한 검색 결과가 없습니다.`;
-                    }
-                    return;
-                }
-
-                // Sort items by date
-                newsItems.sort((a, b) => new Date(b.pubDate) - new Date(a.pubDate));
-
-                // Update status with result count
-                if (keyword) {
-                    searchStatus.textContent = `"${keyword}" 키워드 검색 결과 ${newsItems.length}건`;
-                } else if (category) {
-                    searchStatus.textContent = `"${category.replace('_', ' ')}" 카테고리 검색 결과 ${newsItems.length}건`;
-                }
-
-                newsItems.forEach(news => {
-                    addNewsToDisplay(news);
-                });
-            } catch (error) {
-                console.error('Error:', error);
-                newsContainer.innerHTML = '<p style="color: red;">뉴스를 불러오는 중 오류가 발생했습니다.</p>';
-                searchStatus.textContent = '오류가 발생했습니다.';
-            } finally {
-                loadingDiv.style.display = 'none';
-            }
+            setTimeout(() => {
+                notification.style.display = 'none';
+            }, 3000);
         }
 
-        // Category filter functionality
-        document.getElementById('categoryFilter').addEventListener('click', (e) => {
-            if (e.target.classList.contains('filter-btn')) {
-                const buttons = document.querySelectorAll('.filter-btn');
-                buttons.forEach(btn => btn.classList.remove('active'));
-                e.target.classList.add('active');
-                
-                currentFilter = e.target.dataset.category;
-                // Clear any active keyword when switching categories
-                document.querySelectorAll('.keyword-btn').forEach(btn => btn.classList.remove('active'));
-                searchNews('', currentFilter);
-            }
-        });
+        function setupCategoryButtons() {
+            document.querySelectorAll('.category-title').forEach(button => {
+                button.addEventListener('click', () => {
+                    const category = button.getAttribute('data-category');
+                    loadNews(category);
+                    updateActiveCategory(category);
+                });
+            });
+        }
+
+        function setupKeywordButtons() {
+            document.querySelectorAll('.keyword-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    const keyword = button.getAttribute('data-keyword');
+                    const category = button.closest('.category-section').getAttribute('data-category');
+                    loadNews(category, keyword);
+                    updateActiveKeyword(button);
+                });
+            });
+        }
+
+        function updateActiveCategory(category) {
+            document.querySelectorAll('.category-title').forEach(el => {
+                el.classList.toggle('active', el.getAttribute('data-category') === category);
+            });
+        }
+
+        function updateActiveKeyword(selectedButton) {
+            document.querySelectorAll('.keyword-btn').forEach(button => {
+                button.classList.remove('active');
+            });
+            selectedButton.classList.add('active');
+        }
 
         function showModal(news) {
             const modal = document.getElementById('newsModal');
@@ -1015,6 +1043,22 @@
                     alert('수집기 재시작 중 오류가 발생했습니다: ' + error.message);
                 }
             }
+        }
+
+        function setupFilterButtons() {
+            document.querySelectorAll('.filter-btn').forEach(button => {
+                button.addEventListener('click', () => {
+                    // Remove active class from all buttons
+                    document.querySelectorAll('.filter-btn').forEach(btn => {
+                        btn.classList.remove('active');
+                    });
+                    // Add active class to clicked button
+                    button.classList.add('active');
+                    
+                    const category = button.getAttribute('data-category');
+                    loadNews(category);
+                });
+            });
         }
     </script>
 </body>
